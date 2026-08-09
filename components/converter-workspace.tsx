@@ -2,13 +2,15 @@
 
 import { BackgroundRemover } from '@/components/background-remover';
 import { ImageConverter } from '@/components/image-converter';
+import { FileCompressor } from '@/components/file-compressor';
 import { PdfMerger } from '@/components/pdf-merger';
 import { useState } from 'react';
 
-type TabKey = 'convert' | 'remove' | 'merge';
+type TabKey = 'convert' | 'compress' | 'remove' | 'merge';
 
 const tabs: Array<{ key: TabKey; label: string; description: string }> = [
   { key: 'convert', label: 'Convert', description: 'Batch image conversion' },
+  { key: 'compress', label: 'Compress', description: 'Lossless ZIP compression' },
   { key: 'remove', label: 'Remove background', description: 'Cut out the subject' },
   { key: 'merge', label: 'Merge PDF', description: 'Combine PDF files' }
 ];
@@ -23,22 +25,26 @@ export function ConverterWorkspace() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.18),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(196,181,253,0.12),_transparent_26%)]" />
           <div className="relative grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
             <div className="space-y-4">
-              <p className="text-sm font-medium uppercase tracking-[0.35em] text-sky-200/80">Image tools</p>
+              <p className="text-sm font-medium uppercase tracking-[0.35em] text-sky-200/80">File tools</p>
               <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Switch between image conversion, background removal, and PDF merging in one interface.
+                Switch between image conversion, lossless compression, background removal, and PDF merging in one interface.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                Use the converter for multi-file output ZIPs, switch to background removal for a transparent PNG cutout, or merge PDFs into one file.
+                Use the converter for multi-file output ZIPs, compress any files into a lossless archive, switch to background removal for a transparent PNG cutout, or merge PDFs into one file.
               </p>
             </div>
             <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/35 p-5 text-sm text-slate-300">
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <span>Tabs</span>
-                <span className="text-sky-200">2 tools</span>
+                <span className="text-sky-200">4 tools</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <span>Conversion output</span>
                 <span className="text-sky-200">ZIP bundle</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                <span>Compression output</span>
+                <span className="text-sky-200">Lossless ZIP</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <span>Background output</span>
@@ -76,7 +82,15 @@ export function ConverterWorkspace() {
           </div>
 
           <div className="p-2 sm:p-3">
-            {activeTab === 'convert' ? <ImageConverter /> : activeTab === 'remove' ? <BackgroundRemover /> : <PdfMerger />}
+            {activeTab === 'convert' ? (
+              <ImageConverter />
+            ) : activeTab === 'compress' ? (
+              <FileCompressor />
+            ) : activeTab === 'remove' ? (
+              <BackgroundRemover />
+            ) : (
+              <PdfMerger />
+            )}
           </div>
         </section>
       </div>

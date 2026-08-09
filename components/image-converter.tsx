@@ -10,6 +10,8 @@ type SelectedFile = {
 
 const outputFormats = ['jpeg', 'png', 'webp', 'avif', 'jpg'] as const;
 
+type CompressionMode = 'quality' | 'compression';
+
 function getBaseName(name: string) {
   return name.replace(/\.[^/.]+$/, '');
 }
@@ -17,6 +19,14 @@ function getBaseName(name: string) {
 function getDefaultExtension(format: string) {
   if (format === 'jpeg') return 'jpg';
   return format;
+}
+
+function compressionToQuality(compression: number) {
+  return Math.max(40, Math.round(100 - compression * 0.6));
+}
+
+function qualityToTargetSize(quality: number) {
+  return Math.max(10, Math.min(100, Math.round((quality / 100) * 100)));
 }
 
 async function convertBatch(files: File[], format: string, quality: number) {
@@ -42,6 +52,8 @@ export function ImageConverter() {
   const [files, setFiles] = useState<SelectedFile[]>([]);
   const [format, setFormat] = useState<(typeof outputFormats)[number]>('jpeg');
   const [quality, setQuality] = useState(92);
+  const [compressionMode, setCompressionMode] = useState<CompressionMode>('compression');
+  const [compression, setCompression] = useState(50);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -49,6 +61,16 @@ export function ImageConverter() {
   const dragDepth = useRef(0);
 
   const totalSize = useMemo(() => files.reduce((sum, item) => sum + item.file.size, 0), [files]);
+  const effectiveQuality = compressionMode === 'compression' ? compressionToQuality(compression) : quality;
+  const estimatedTargetSize = useMemo(() => {
+    if (!totalSize) return 0;
+
+    if (compressionMode === 'compression') {
+      return Math.round(totalSize * (1 - compression / 100));
+    }
+
+    return Math.round(totalSize * (quality / 100));
+  }, [compression, compressionMode, quality, totalSize]);
 
   useEffect(() => {
     return () => {
@@ -129,7 +151,7 @@ export function ImageConverter() {
 
     try {
       if (downloadUrl) URL.revokeObjectURL(downloadUrl);
-      const blob = await convertBatch(files.map((item) => item.file), format, quality);
+      const blob = await convertBatch(files.map((item) => item.file), format, effectiveQuality);
       const objectUrl = URL.createObjectURL(blob);
       setDownloadUrl(objectUrl);
 
@@ -204,6 +226,30 @@ export function ImageConverter() {
       <aside className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 shadow-glow backdrop-blur-xl sm:p-6">
         <h2 className="text-xl font-semibold text-white">Conversion settings</h2>
         <div className="mt-5 space-y-5">
+          <div className="grid gap-3 text-sm text-slate-300">
+            <span>Compression control</span>
+            <div className="grid grid-cols-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
+              <button
+                type="button"
+                onClick={() => setCompressionMode('quality')}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  compressionMode === 'quality' ? 'bg-sky-300 text-slate-950' : 'text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                Quality
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompressionMode('compression')}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  compressionMode === 'compression' ? 'bg-sky-300 text-slate-950' : 'text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                Compression
+              </button>
+            </div>
+          </div>
+
           <label className="grid gap-2 text-sm text-slate-300">
             Output format
             <select
@@ -219,17 +265,31 @@ export function ImageConverter() {
             </select>
           </label>
 
-          <label className="grid gap-3 text-sm text-slate-300">
-            Quality: <span className="text-slate-100">{quality}</span>
-            <input
-              type="range"
-              min={40}
-              max={100}
-              value={quality}
-              onChange={(event) => setQuality(Number(event.target.value))}
-              className="accent-sky-300"
-            />
-          </label>
+          {compressionMode === 'quality' ? (
+            <label className="grid gap-3 text-sm text-slate-300">
+              Quality: <span className="text-slate-100">{quality}</span>
+              <input
+                type="range"
+                min={40}
+                max={100}
+                value={quality}
+                onChange={(event) => setQuality(Number(event.target.value))}
+                className="accent-sky-300"
+              />
+            </label>
+          ) : (
+            <label className="grid gap-3 text-sm text-slate-300">
+              Compression target: <span className="text-slate-100">{compression}% of source</span>
+              <input
+                type="range"
+                min={10}
+                max={90}
+                value={compression}
+                onChange={(event) => setCompression(Number(event.target.value))}
+                className="accent-sky-300"
+              />
+            </label>
+          )}
 
           <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
             <div className="flex items-center justify-between">
@@ -239,6 +299,12 @@ export function ImageConverter() {
             <div className="flex items-center justify-between">
               <span>Total size</span>
               <span className="text-white">{(totalSize / 1024 / 1024).toFixed(2)} MB</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>{compressionMode === 'compression' ? 'Estimated output' : 'Output quality'}</span>
+              <span className="text-white">
+                {compressionMode === 'compression' ? `${(estimatedTargetSize / 1024 / 1024).toFixed(2)} MB` : `${quality}%`}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span>Output extension</span>
@@ -270,7 +336,7 @@ export function ImageConverter() {
           </div>
 
           <p className="text-xs leading-6 text-slate-400">
-            Multiple uploads are bundled into one ZIP download. HEIC, JPEG, JPG, PNG, WebP, AVIF, and other common image formats are handled on the server when supported by the runtime.
+            Multiple uploads are bundled into one ZIP download. Use compression mode to target a smaller file size, or quality mode to keep more detail. HEIC, JPEG, JPG, PNG, WebP, AVIF, and other common image formats are handled on the server when supported by the runtime.
           </p>
         </div>
       </aside>

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const inputBuffer = Buffer.from(await file.arrayBuffer());
     const result = await removeBackground(inputBuffer, { tolerance, feather });
 
-    return new Response(result.buffer, {
+    return new Response(new Uint8Array(result.buffer), {
       headers: {
         'Content-Type': result.mime,
         'Content-Disposition': `attachment; filename="${file.name.replace(/\.[^/.]+$/, '')}-no-background.png"`

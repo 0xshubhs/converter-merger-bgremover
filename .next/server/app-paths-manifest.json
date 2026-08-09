@@ -1,3 +1,8 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/merge-pdf/route": "app/api/merge-pdf/route.js",
+  "/api/remove-background/route": "app/api/remove-background/route.js",
+  "/api/compress/route": "app/api/compress/route.js",
+  "/api/convert/route": "app/api/convert/route.js",
   "/page": "app/page.js"
 }
