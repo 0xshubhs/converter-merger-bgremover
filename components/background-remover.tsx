@@ -1,253 +1,123 @@
 'use client';
 
-import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react';
-
-type SelectedFile = {
-  id: string;
-  file: File;
-  previewUrl: string;
-};
-
-async function removeBackground(file: File, tolerance: number, feather: number) {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('tolerance', String(tolerance));
-  formData.append('feather', String(feather));
-
-  const response = await fetch('/api/remove-background', {
-    method: 'POST',
-    body: formData
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Background removal failed');
-  }
-
-  return response.blob();
-}
+import { useState } from 'react';
+import {
+  AddFilesButton,
+  Dropzone,
+  ErrorBanner,
+  Hint,
+  Panel,
+  PanelHeading,
+  PrimaryButton,
+  RangeField,
+  RemoveButton,
+  SecondaryButton,
+  StatList,
+  StatRow,
+  ToolLayout
+} from '@/components/ui';
+import { formatBytes, postForm } from '@/lib/client/transfer';
+import { useFileSelection } from '@/lib/client/use-file-selection';
+import { useToolRun } from '@/lib/client/use-tool-run';
 
 export function BackgroundRemover() {
-  const [file, setFile] = useState<SelectedFile | null>(null);
+  const selection = useFileSelection({
+    multiple: false,
+    withPreview: true,
+    accept: (file) => !file.type || file.type.startsWith('image/'),
+    rejectMessage: 'Only image files are supported.'
+  });
+  const { busy, error, run } = useToolRun();
+
   const [tolerance, setTolerance] = useState(42);
   const [feather, setFeather] = useState(32);
-  const [busy, setBusy] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const dragDepth = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      if (file) URL.revokeObjectURL(file.previewUrl);
-      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
-    };
-  }, [downloadUrl, file]);
+  const selected = selection.files[0] ?? null;
 
-  function setSelectedFile(sourceFile: File | null) {
-    if (!sourceFile) return;
+  function handleRemoveBackground() {
+    if (!selected) return;
 
-    setFile((current) => {
-      if (current) URL.revokeObjectURL(current.previewUrl);
-      return {
-        id: `${sourceFile.name}-${sourceFile.size}-${sourceFile.lastModified}-${crypto.randomUUID()}`,
-        file: sourceFile,
-        previewUrl: URL.createObjectURL(sourceFile)
-      };
-    });
-    setError(null);
-  }
+    const formData = new FormData();
+    formData.append('file', selected.file, selected.file.name);
+    formData.append('tolerance', String(tolerance));
+    formData.append('feather', String(feather));
 
-  function addFile(event: ChangeEvent<HTMLInputElement>) {
-    setSelectedFile(event.target.files?.[0] ?? null);
-    event.target.value = '';
-  }
+    const fallback = `${selected.file.name.replace(/\.[^/.]+$/, '')}-no-background.png`;
 
-  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    dragDepth.current += 1;
-    setIsDragging(true);
-  }
-
-  function handleDragOver(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-  }
-
-  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    dragDepth.current = Math.max(0, dragDepth.current - 1);
-
-    if (dragDepth.current === 0) {
-      setIsDragging(false);
-    }
-  }
-
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    dragDepth.current = 0;
-    setIsDragging(false);
-    setSelectedFile(event.dataTransfer.files?.[0] ?? null);
-  }
-
-  function clearFile() {
-    if (file) URL.revokeObjectURL(file.previewUrl);
-    setFile(null);
-    setError(null);
-  }
-
-  async function handleRemoveBackground() {
-    if (!file || busy) return;
-
-    setBusy(true);
-    setError(null);
-
-    try {
-      if (downloadUrl) URL.revokeObjectURL(downloadUrl);
-      const blob = await removeBackground(file.file, tolerance, feather);
-      const objectUrl = URL.createObjectURL(blob);
-      setDownloadUrl(objectUrl);
-
-      const anchor = document.createElement('a');
-      anchor.href = objectUrl;
-      anchor.download = `${file.file.name.replace(/\.[^/.]+$/, '')}-no-background.png`;
-      anchor.click();
-    } catch (removalError) {
-      setError(removalError instanceof Error ? removalError.message : 'Something went wrong');
-    } finally {
-      setBusy(false);
-    }
+    void run(() => postForm('/api/remove-background', formData, fallback));
   }
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-      <div className="rounded-[1.75rem] border border-white/10 bg-[var(--panel)] p-5 shadow-glow backdrop-blur-xl sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Upload image</h2>
-            <p className="text-sm text-slate-400">Best for plain or near-uniform backgrounds.</p>
-          </div>
-          <label className="cursor-pointer rounded-full border border-sky-300/30 bg-sky-400/10 px-4 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-300/15">
-            Add image
-            <input className="hidden" type="file" accept="image/*" onChange={addFile} />
-          </label>
-        </div>
+    <ToolLayout>
+      <Panel>
+        <PanelHeading
+          title="Upload image"
+          description="Best for plain or near-uniform backgrounds."
+          action={
+            <AddFilesButton label="Add image" accept="image/*,.heic,.heif" multiple={false} onChange={selection.addFromInput} />
+          }
+        />
 
-        <div
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`mt-5 rounded-3xl border border-dashed p-6 text-center transition-all ${
-            isDragging
-              ? 'border-sky-300/80 bg-sky-400/12 text-slate-100 shadow-[0_0_0_1px_rgba(125,211,252,0.25)]'
-              : 'border-white/15 bg-black/20 text-slate-400'
-          }`}
-        >
-          <p className="text-base font-medium text-slate-200">
-            {isDragging ? 'Drop the image here' : 'Drag and drop an image here'}
-          </p>
-          <p className="mt-1 text-sm">The output will be a transparent PNG.</p>
-        </div>
+        <Dropzone
+          isDragging={selection.isDragging}
+          idleTitle="Drag and drop an image here"
+          activeTitle="Drop the image here"
+          hint="The output will be a transparent PNG."
+          handlers={selection.dropzoneProps}
+        />
 
         <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/40">
           <div className="flex min-h-[300px] items-center justify-center bg-[radial-gradient(circle_at_center,_rgba(125,211,252,0.08),_transparent_42%)] p-4">
-            {file ? (
-              <img className="max-h-[360px] w-full rounded-2xl object-contain" src={file.previewUrl} alt={file.file.name} />
+            {selected?.previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- local blob URLs cannot use the image optimizer
+              <img className="max-h-[360px] w-full rounded-2xl object-contain" src={selected.previewUrl} alt={selected.file.name} />
             ) : (
               <div className="max-w-sm text-center text-sm leading-6 text-slate-400">
                 Upload an image with a visible background and the tool will try to cut the subject out.
               </div>
             )}
           </div>
-          {file ? (
+          {selected ? (
             <div className="flex items-start justify-between gap-3 border-t border-white/10 p-4">
-              <div>
-                <h3 className="truncate text-sm font-semibold text-white">{file.file.name}</h3>
-                <p className="text-xs text-slate-400">{(file.file.size / 1024 / 1024).toFixed(2)} MB</p>
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-semibold text-white">{selected.file.name}</h3>
+                <p className="text-xs text-slate-400">{formatBytes(selected.file.size)}</p>
               </div>
-              <button
-                type="button"
-                onClick={clearFile}
-                className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-200 transition hover:bg-white/5"
-              >
-                Remove
-              </button>
+              <RemoveButton onClick={selection.clear} />
             </div>
           ) : null}
         </div>
-      </div>
+      </Panel>
 
-      <aside className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 shadow-glow backdrop-blur-xl sm:p-6">
+      <Panel tinted>
         <h2 className="text-xl font-semibold text-white">Removal settings</h2>
         <div className="mt-5 space-y-5">
-          <label className="grid gap-3 text-sm text-slate-300">
-            Tolerance: <span className="text-slate-100">{tolerance}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={tolerance}
-              onChange={(event) => setTolerance(Number(event.target.value))}
-              className="accent-sky-300"
-            />
-          </label>
+          <RangeField label="Tolerance:" valueLabel={String(tolerance)} value={tolerance} min={0} max={200} onChange={setTolerance} />
+          <RangeField label="Feather:" valueLabel={String(feather)} value={feather} min={0} max={200} onChange={setFeather} />
 
-          <label className="grid gap-3 text-sm text-slate-300">
-            Feather: <span className="text-slate-100">{feather}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={feather}
-              onChange={(event) => setFeather(Number(event.target.value))}
-              className="accent-sky-300"
-            />
-          </label>
+          <StatList>
+            <StatRow label="Selected image" value={selected ? '1' : '0'} />
+            <StatRow label="Output" value="Transparent PNG" />
+            <StatRow label="Edge softness" value={feather === 0 ? 'Hard cut' : `${feather} levels`} />
+          </StatList>
 
-          <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-            <div className="flex items-center justify-between">
-              <span>Selected image</span>
-              <span className="text-white">{file ? '1' : '0'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Output</span>
-              <span className="text-white">Transparent PNG</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Style</span>
-              <span className="text-white">Best effort</span>
-            </div>
-          </div>
-
-          {error ? (
-            <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>
-          ) : null}
+          <ErrorBanner message={error ?? selection.error} />
 
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={!file || busy}
-              onClick={handleRemoveBackground}
-              className="rounded-full bg-sky-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <PrimaryButton disabled={!selected || busy} onClick={handleRemoveBackground}>
               {busy ? 'Removing...' : 'Remove background'}
-            </button>
-            <button
-              type="button"
-              disabled={!file || busy}
-              onClick={clearFile}
-              className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            </PrimaryButton>
+            <SecondaryButton disabled={!selected || busy} onClick={selection.clear}>
               Clear image
-            </button>
+            </SecondaryButton>
           </div>
 
-          <p className="text-xs leading-6 text-slate-400">
-            This route is a local approximation of remove.bg behavior. It performs best on photos with simple, solid, or lightly textured backgrounds.
-          </p>
+          <Hint>
+            The background colour is sampled from the border of the image, then pixels close to it are made transparent.
+            Raise the tolerance if parts of the background remain, and lower it if the subject starts disappearing.
+          </Hint>
         </div>
-      </aside>
-    </section>
+      </Panel>
+    </ToolLayout>
   );
 }

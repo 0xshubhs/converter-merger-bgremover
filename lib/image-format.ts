@@ -2,13 +2,22 @@ export const supportedOutputFormats = ['jpeg', 'png', 'webp', 'avif', 'tiff', 'g
 
 export type SupportedOutputFormat = (typeof supportedOutputFormats)[number];
 
+// A Map, not an object literal: the key comes from the request body, and a plain
+// object would resolve "__proto__" or "constructor" to something off the prototype.
+const formatAliases = new Map<string, SupportedOutputFormat>([
+  ['jpg', 'jpeg'],
+  ['jpeg', 'jpeg'],
+  ['jfif', 'jpeg'],
+  ['png', 'png'],
+  ['webp', 'webp'],
+  ['avif', 'avif'],
+  ['tif', 'tiff'],
+  ['tiff', 'tiff'],
+  ['gif', 'gif']
+]);
+
 export function normalizeFormat(format: string): SupportedOutputFormat {
-  const value = format.toLowerCase();
-  if (value === 'jpg') return 'jpeg';
-  if (supportedOutputFormats.includes(value as SupportedOutputFormat)) {
-    return value as SupportedOutputFormat;
-  }
-  return 'jpeg';
+  return formatAliases.get(format.trim().toLowerCase()) ?? 'jpeg';
 }
 
 export function outputExtension(format: SupportedOutputFormat) {
@@ -30,4 +39,9 @@ export function mimeForFormat(format: SupportedOutputFormat) {
     case 'gif':
       return 'image/gif';
   }
+}
+
+/** True when the encoder discards detail as quality drops, so the slider is meaningful. */
+export function isLossyFormat(format: SupportedOutputFormat) {
+  return format === 'jpeg' || format === 'webp' || format === 'avif';
 }

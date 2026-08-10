@@ -1,30 +1,28 @@
 import { NextRequest } from 'next/server';
+import { binaryResponse, collectFiles, errorResponse, readFormData, readNumber, stripExtension } from '@/lib/http';
 import { removeBackground } from '@/lib/remove-background';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
+    const formData = await readFormData(request);
+    const [file] = collectFiles(formData, { key: 'file', label: 'image', maxFiles: 1 });
 
-    if (!(file instanceof File)) {
-      return new Response('A single image file is required.', { status: 400 });
-    }
-
-    const tolerance = Number(formData.get('tolerance') ?? 42);
-    const feather = Number(formData.get('feather') ?? 32);
+    const tolerance = readNumber(formData, 'tolerance', 42, 0, 441);
+    const feather = readNumber(formData, 'feather', 32, 0, 441);
     const inputBuffer = Buffer.from(await file.arrayBuffer());
-    const result = await removeBackground(inputBuffer, { tolerance, feather });
 
-    return new Response(new Uint8Array(result.buffer), {
-      headers: {
-        'Content-Type': result.mime,
-        'Content-Disposition': `attachment; filename="${file.name.replace(/\.[^/.]+$/, '')}-no-background.png"`
-      }
+    const result = await removeBackground(inputBuffer, {
+      tolerance,
+      feather,
+      inputName: file.name,
+      inputType: file.type
     });
+
+    return binaryResponse(result.buffer, result.mime, `${stripExtension(file.name)}-no-background.png`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Background removal failed unexpectedly.';
-    return new Response(message, { status: 500 });
+    return errorResponse(error, 'Background removal failed unexpectedly.');
   }
 }
