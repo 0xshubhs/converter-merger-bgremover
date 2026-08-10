@@ -57,11 +57,19 @@ export function SignaturePad({ onChange }: Props) {
     // Backing store is scaled for crisp strokes; drawing uses CSS pixel coordinates.
     const ratio = Math.min(3, window.devicePixelRatio || 1);
 
-    if (canvas.width !== PAD_WIDTH * ratio) {
-      canvas.width = PAD_WIDTH * ratio;
-      canvas.height = PAD_HEIGHT * ratio;
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // Round before comparing: canvas.width truncates on assignment, so a
+    // fractional ratio (600 * 1.1 is 660.0000000000001) would never match and
+    // the canvas would be resized — and therefore cleared — on every stroke.
+    const width = Math.round(PAD_WIDTH * ratio);
+    const height = Math.round(PAD_HEIGHT * ratio);
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
     }
+
+    // Resizing resets the transform, so it is always reapplied.
+    ctx.setTransform(width / PAD_WIDTH, 0, 0, height / PAD_HEIGHT, 0, 0);
 
     return ctx;
   }, []);

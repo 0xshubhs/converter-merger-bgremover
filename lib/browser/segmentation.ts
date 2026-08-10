@@ -16,7 +16,7 @@ const MODEL_URL =
 
 const MODEL_CACHE = 'rmbg-model-v1';
 
-type OrtModule = typeof import('onnxruntime-web');
+type OrtModule = typeof import('onnxruntime-web/wasm');
 type Session = Awaited<ReturnType<OrtModule['InferenceSession']['create']>>;
 
 let sessionPromise: Promise<Session> | null = null;
@@ -66,12 +66,16 @@ async function fetchModel(onProgress: ProgressReporter): Promise<ArrayBuffer> {
 async function getSession(onProgress: ProgressReporter) {
   if (!sessionPromise) {
     sessionPromise = (async () => {
-      const ort = await import('onnxruntime-web');
+      const ort = await import('onnxruntime-web/wasm');
 
-      // Served from /public/ort by scripts/copy-ort.mjs, so no CDN is involved.
+      // The default entry point is the JSEP/WebGPU build, which asks for
+      // ort-wasm-simd-threaded.jsep.* — files we do not ship. This build
+      // requests exactly what scripts/copy-ort.mjs vendors into /public/ort.
       ort.env.wasm.wasmPaths = '/ort/';
-      // Threads need cross-origin isolation headers, which we do not set.
-      ort.env.wasm.numThreads = 1;
+      // Threads need SharedArrayBuffer, which needs cross-origin isolation.
+      ort.env.wasm.numThreads = globalThis.crossOriginIsolated
+        ? Math.min(4, navigator.hardwareConcurrency || 1)
+        : 1;
 
       const model = await fetchModel(onProgress);
 
@@ -99,7 +103,7 @@ export async function segmentForeground(
   canvas: HTMLCanvasElement,
   onProgress: ProgressReporter
 ): Promise<Float32Array> {
-  const ort = await import('onnxruntime-web');
+  const ort = await import('onnxruntime-web/wasm');
   const session = await getSession(onProgress);
 
   onProgress(0, 1, 'Finding the subject');
