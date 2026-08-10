@@ -14,7 +14,7 @@ import { removeBackgroundPixels } from '@/lib/remove-background-pixels';
 import { signPdf, type SignaturePlacement } from '@/lib/sign-pdf';
 import { createNameDeduper, zipEntries } from '@/lib/zip';
 import { canvasToBlob, decodeImageFile, drawToCanvas, flattenOntoWhite } from './canvas';
-import { openPdf } from './pdfjs';
+import { openPdf, renderPageToCanvas } from './pdfjs';
 
 export type ToolResult = {
   blob: Blob;
@@ -83,28 +83,20 @@ async function compressPdf(
 ): Promise<ToolResult> {
   const { PDFDocument } = await import('pdf-lib');
   const source = await openPdf(new Uint8Array(await file.arrayBuffer()));
+  const pageCount = source.document.numPages;
   const output = await PDFDocument.create();
   const scale = pdfRenderScale(settings.resolution);
   const canvas = document.createElement('canvas');
 
   try {
-    for (let pageNumber = 1; pageNumber <= source.numPages; pageNumber += 1) {
-      onProgress(pageNumber - 1, source.numPages, `${fileLabel} — page ${pageNumber} of ${source.numPages}`);
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      onProgress(pageNumber - 1, pageCount, `${fileLabel} — page ${pageNumber} of ${pageCount}`);
       await tick();
 
-      const page = await source.getPage(pageNumber);
+      const page = await source.document.getPage(pageNumber);
       const pageBox = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale });
 
-      canvas.width = Math.max(1, Math.floor(viewport.width));
-      canvas.height = Math.max(1, Math.floor(viewport.height));
-
-      const canvasContext = canvas.getContext('2d');
-      if (!canvasContext) throw new Error('This browser could not provide a 2D canvas.');
-
-      canvasContext.fillStyle = '#ffffff';
-      canvasContext.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext, viewport }).promise;
+      await renderPageToCanvas(page, canvas, scale);
 
       const jpeg = await canvasToBlob(canvas, 'image/jpeg', settings.quality / 100);
       const image = await output.embedJpg(new Uint8Array(await jpeg.arrayBuffer()));
@@ -132,7 +124,7 @@ async function compressPdf(
         : 'Recompressing made it larger, so the original was kept'
     };
   } finally {
-    await source.destroy().catch(() => undefined);
+    await source.close();
     // Release the backing store rather than waiting for GC.
     canvas.width = 0;
     canvas.height = 0;

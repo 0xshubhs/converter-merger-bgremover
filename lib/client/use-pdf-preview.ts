@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { openPdf, type PdfDocumentProxy } from '@/lib/browser/pdfjs';
+import { openPdf, renderPageToCanvas, type OpenedPdf } from '@/lib/browser/pdfjs';
 
 type PageImage = {
   url: string;
@@ -39,33 +39,26 @@ export function usePdfPreview(file: File | null, renderWidth = 900) {
     setError(null);
 
     (async () => {
-      let document: PdfDocumentProxy | null = null;
+      let opened: OpenedPdf | null = null;
 
       try {
-        document = await openPdf(new Uint8Array(await file.arrayBuffer()));
+        opened = await openPdf(new Uint8Array(await file.arrayBuffer()));
 
         const rendered: PageImage[] = [];
 
-        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+        for (let pageNumber = 1; pageNumber <= opened.document.numPages; pageNumber += 1) {
           if (cancelled) break;
 
-          const page = await document.getPage(pageNumber);
+          const page = await opened.document.getPage(pageNumber);
           const base = page.getViewport({ scale: 1 });
-          const viewport = page.getViewport({ scale: renderWidth / base.width });
 
           const canvas = window.document.createElement('canvas');
-          canvas.width = Math.floor(viewport.width);
-          canvas.height = Math.floor(viewport.height);
-
-          const canvasContext = canvas.getContext('2d');
-          if (!canvasContext) throw new Error('This browser could not render the PDF preview.');
-
-          await page.render({ canvasContext, viewport }).promise;
+          const { width, height } = await renderPageToCanvas(page, canvas, renderWidth / base.width);
 
           const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
           if (!blob) throw new Error('The PDF preview could not be created.');
 
-          rendered.push({ url: URL.createObjectURL(blob), width: canvas.width, height: canvas.height });
+          rendered.push({ url: URL.createObjectURL(blob), width, height });
         }
 
         if (cancelled) {
@@ -83,7 +76,7 @@ export function usePdfPreview(file: File | null, renderWidth = 900) {
           setPages([]);
         }
       } finally {
-        await document?.destroy().catch(() => undefined);
+        await opened?.close();
         if (!cancelled) setLoading(false);
       }
     })();
