@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SignaturePad } from '@/components/signature-pad';
+import { ResultPreview } from '@/components/result-preview';
 import {
   AddFilesButton,
   Dropzone,
@@ -37,7 +38,7 @@ let placementId = 0;
 
 export function SignPdf() {
   const selection = useFileSelection({ multiple: false, accept: isPdf, rejectMessage: 'Only PDF files can be signed.' });
-  const { busy, error, run } = useToolRun();
+  const { busy, error, results, clearResults, run } = useToolRun();
 
   const document = selection.files[0]?.file ?? null;
   const { pages, loading, error: previewError } = usePdfPreview(document);
@@ -165,7 +166,8 @@ export function SignPdf() {
   }, [placements]);
 
   return (
-    <ToolLayout>
+    <>
+      <ToolLayout>
       <Panel>
         <PanelHeading
           title="Upload PDF"
@@ -284,6 +286,9 @@ export function SignPdf() {
           </Hint>
         </div>
       </Panel>
-    </ToolLayout>
+      </ToolLayout>
+
+      <ResultPreview results={results} onClear={clearResults} />
+    </>
   );
 }

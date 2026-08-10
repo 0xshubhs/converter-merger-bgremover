@@ -1,32 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-type PdfDocumentProxy = {
-  numPages: number;
-  getPage: (pageNumber: number) => Promise<PdfPageProxy>;
-  destroy: () => Promise<void>;
-};
-
-type PdfPageProxy = {
-  getViewport: (options: { scale: number }) => { width: number; height: number };
-  render: (options: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<void> };
-};
+import { openPdf, type PdfDocumentProxy } from '@/lib/browser/pdfjs';
 
 type PageImage = {
   url: string;
   width: number;
   height: number;
 };
-
-/** pdf.js is ~350 kB, so it is only pulled in when the signing tool actually opens a file. */
-async function loadPdfJs() {
-  const pdfjs = await import('pdfjs-dist');
-
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-
-  return pdfjs;
-}
 
 /**
  * Renders every page of a PDF to a PNG object URL for on-screen placement.
@@ -61,9 +42,7 @@ export function usePdfPreview(file: File | null, renderWidth = 900) {
       let document: PdfDocumentProxy | null = null;
 
       try {
-        const pdfjs = await loadPdfJs();
-        const data = new Uint8Array(await file.arrayBuffer());
-        document = (await pdfjs.getDocument({ data }).promise) as unknown as PdfDocumentProxy;
+        document = await openPdf(new Uint8Array(await file.arrayBuffer()));
 
         const rendered: PageImage[] = [];
 

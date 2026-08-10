@@ -1,5 +1,6 @@
 'use client';
 
+import { ResultPreview } from '@/components/result-preview';
 import {
   AddFilesButton,
   Dropzone,
@@ -27,7 +28,7 @@ function isPdf(file: File) {
 
 export function PdfMerger() {
   const selection = useFileSelection({ accept: isPdf, rejectMessage: 'Only PDF files can be merged.' });
-  const { busy, error, progress, run } = useToolRun();
+  const { busy, error, progress, results, clearResults, run } = useToolRun();
 
   function handleMerge() {
     const files = selection.files.map((item) => item.file);
@@ -36,7 +37,8 @@ export function PdfMerger() {
   }
 
   return (
-    <ToolLayout>
+    <>
+      <ToolLayout>
       <Panel>
         <PanelHeading
           title="Upload PDFs"
@@ -107,6 +109,9 @@ export function PdfMerger() {
           </Hint>
         </div>
       </Panel>
-    </ToolLayout>
+      </ToolLayout>
+
+      <ResultPreview results={results} onClear={clearResults} />
+    </>
   );
 }

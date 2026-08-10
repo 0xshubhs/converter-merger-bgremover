@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ResultPreview } from '@/components/result-preview';
 import {
   AddFilesButton,
   Dropzone,
@@ -28,7 +29,7 @@ export function BackgroundRemover() {
     accept: (file) => !file.type || file.type.startsWith('image/'),
     rejectMessage: 'Only image files are supported.'
   });
-  const { busy, error, run } = useToolRun();
+  const { busy, error, results, clearResults, run } = useToolRun();
 
   const [tolerance, setTolerance] = useState(42);
   const [feather, setFeather] = useState(32);
@@ -44,7 +45,8 @@ export function BackgroundRemover() {
   }
 
   return (
-    <ToolLayout>
+    <>
+      <ToolLayout>
       <Panel>
         <PanelHeading
           title="Upload image"
@@ -115,6 +117,9 @@ export function BackgroundRemover() {
           </Hint>
         </div>
       </Panel>
-    </ToolLayout>
+      </ToolLayout>
+
+      <ResultPreview results={results} onClear={clearResults} />
+    </>
   );
 }

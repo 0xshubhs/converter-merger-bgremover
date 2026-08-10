@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ResultPreview } from '@/components/result-preview';
 import {
   AddFilesButton,
   Dropzone,
@@ -47,7 +48,7 @@ export function ImageToPdf() {
     accept: (file) => !file.type || file.type.startsWith('image/'),
     rejectMessage: 'Only image files can be placed in a PDF.'
   });
-  const { busy, error, notice, progress, run } = useToolRun();
+  const { busy, error, notice, progress, results, clearResults, run } = useToolRun();
 
   const [pageSize, setPageSize] = useState<PdfPageSize>('a4');
   const [orientation, setOrientation] = useState<PdfOrientation>('auto');
@@ -62,7 +63,8 @@ export function ImageToPdf() {
   }
 
   return (
-    <ToolLayout>
+    <>
+      <ToolLayout>
       <Panel>
         <PanelHeading
           title="Upload images"
@@ -131,6 +133,9 @@ export function ImageToPdf() {
           </Hint>
         </div>
       </Panel>
-    </ToolLayout>
+      </ToolLayout>
+
+      <ResultPreview results={results} onClear={clearResults} />
+    </>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ResultPreview } from '@/components/result-preview';
 import {
   AddFilesButton,
   Dropzone,
@@ -48,7 +49,7 @@ function compressionToQuality(compression: number) {
 
 export function ImageConverter() {
   const selection = useFileSelection({ withPreview: true, accept: (file) => !file.type || file.type.startsWith('image/'), rejectMessage: 'Only image files can be converted.' });
-  const { busy, error, setError, run } = useToolRun();
+  const { busy, error, setError, results, clearResults, run } = useToolRun();
 
   const [format, setFormat] = useState<SupportedOutputFormat>('jpeg');
   const [quality, setQuality] = useState(92);
@@ -82,7 +83,8 @@ export function ImageConverter() {
   }
 
   return (
-    <ToolLayout>
+    <>
+      <ToolLayout>
       <Panel>
         <PanelHeading
           title="Upload images"
@@ -155,11 +157,15 @@ export function ImageConverter() {
           </div>
 
           <Hint>
-            A single image downloads on its own; several are bundled into one ZIP. The size estimate is a guide only — the real
-            result depends on the image. HEIC, JPEG, PNG, WebP, AVIF, TIFF, and GIF inputs are handled on the server.
+            Results appear below for you to check before downloading &mdash; nothing is saved automatically. The size estimate
+            is a guide only; the real result depends on the image. HEIC, JPEG, PNG, WebP, AVIF, TIFF, and GIF inputs are
+            handled on the server, which is why this tool has an upload limit and the others do not.
           </Hint>
         </div>
       </Panel>
-    </ToolLayout>
+      </ToolLayout>
+
+      <ResultPreview results={results} onClear={clearResults} />
+    </>
   );
 }
