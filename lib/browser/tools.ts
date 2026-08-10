@@ -7,10 +7,10 @@ import {
   pdfRenderScale,
   type ResolutionPreset
 } from '@/lib/compression-presets';
-import { MAX_PDF_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION } from '@/lib/limits';
+import { MAX_PDF_IMAGE_DIMENSION } from '@/lib/limits';
 import { mergePdfs } from '@/lib/merge-pdf';
 import { planImagePage } from '@/lib/pdf-page-layout';
-import { removeBackgroundPixels } from '@/lib/remove-background-pixels';
+import { applyAlphaMask } from '@/lib/segmentation-math';
 import { signPdf, type SignaturePlacement } from '@/lib/sign-pdf';
 import { createNameDeduper, zipEntries } from '@/lib/zip';
 import { canvasToBlob, decodeImageFile, drawToCanvas, flattenOntoWhite } from './canvas';
@@ -276,14 +276,25 @@ export async function imagesToPdfInBrowser(
   } satisfies ToolResult;
 }
 
-export async function removeBackgroundInBrowser(file: File, tolerance: number, feather: number) {
+/**
+ * Cuts out the subject with RMBG-1.4. The model handles hair and busy
+ * backgrounds, which the old edge-colour sampling could never do.
+ */
+export async function removeBackgroundInBrowser(
+  file: File,
+  softness: number,
+  onProgress: ProgressReporter = noop
+): Promise<ToolResult> {
+  const { segmentForeground } = await import('./segmentation');
   const decoded = await decodeImageFile(file);
 
   try {
-    const { canvas, context, width, height } = drawToCanvas(decoded, MAX_IMAGE_DIMENSION);
+    // 2048 keeps peak memory sane; the mask is computed at 1024 regardless.
+    const { canvas, context, width, height } = drawToCanvas(decoded, 2048);
+    const mask = await segmentForeground(canvas, onProgress);
     const imageData = context.getImageData(0, 0, width, height);
 
-    removeBackgroundPixels(imageData.data, width, height, { tolerance, feather });
+    applyAlphaMask(imageData.data, mask, softness);
     context.putImageData(imageData, 0, 0);
 
     return {

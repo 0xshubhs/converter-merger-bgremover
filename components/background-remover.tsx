@@ -10,6 +10,7 @@ import {
   Panel,
   PanelHeading,
   PrimaryButton,
+  ProgressBar,
   RangeField,
   RemoveButton,
   SecondaryButton,
@@ -29,10 +30,9 @@ export function BackgroundRemover() {
     accept: (file) => !file.type || file.type.startsWith('image/'),
     rejectMessage: 'Only image files are supported.'
   });
-  const { busy, error, results, clearResults, run } = useToolRun();
+  const { busy, error, progress, results, clearResults, run } = useToolRun();
 
-  const [tolerance, setTolerance] = useState(42);
-  const [feather, setFeather] = useState(32);
+  const [softness, setSoftness] = useState(30);
 
   const selected = selection.files[0] ?? null;
 
@@ -41,7 +41,7 @@ export function BackgroundRemover() {
 
     const file = selected.file;
 
-    void run(() => removeBackgroundInBrowser(file, tolerance, feather));
+    void run((report) => removeBackgroundInBrowser(file, softness / 100, report));
   }
 
   return (
@@ -50,7 +50,7 @@ export function BackgroundRemover() {
       <Panel>
         <PanelHeading
           title="Upload image"
-          description="Best for plain or near-uniform backgrounds."
+          description="Works on people, products, and busy backgrounds."
           action={
             <AddFilesButton label="Add image" accept="image/*,.heic,.heif" multiple={false} onChange={selection.addFromInput} />
           }
@@ -60,7 +60,7 @@ export function BackgroundRemover() {
           isDragging={selection.isDragging}
           idleTitle="Drag and drop an image here"
           activeTitle="Drop the image here"
-          hint="The output will be a transparent PNG."
+          hint="The subject is detected automatically. Output is a transparent PNG."
           handlers={selection.dropzoneProps}
         />
 
@@ -71,7 +71,7 @@ export function BackgroundRemover() {
               <img className="max-h-[360px] w-full rounded-2xl object-contain" src={selected.previewUrl} alt={selected.file.name} />
             ) : (
               <div className="max-w-sm text-center text-sm leading-6 text-slate-400">
-                Upload an image with a visible background and the tool will try to cut the subject out.
+Upload a photo and the AI model will cut the subject out for you.
               </div>
             )}
           </div>
@@ -90,14 +90,22 @@ export function BackgroundRemover() {
       <Panel tinted>
         <h2 className="text-xl font-semibold text-white">Removal settings</h2>
         <div className="mt-5 space-y-5">
-          <RangeField label="Tolerance:" valueLabel={String(tolerance)} value={tolerance} min={0} max={200} onChange={setTolerance} />
-          <RangeField label="Feather:" valueLabel={String(feather)} value={feather} min={0} max={200} onChange={setFeather} />
+          <RangeField
+            label="Edge softness:"
+            valueLabel={softness <= 5 ? 'Hard cut' : `${softness}%`}
+            value={softness}
+            min={1}
+            max={100}
+            onChange={setSoftness}
+          />
 
           <StatList>
             <StatRow label="Selected image" value={selected ? '1' : '0'} />
             <StatRow label="Output" value="Transparent PNG" />
-            <StatRow label="Edge softness" value={feather === 0 ? 'Hard cut' : `${feather} levels`} />
+            <StatRow label="Model" value="RMBG-1.4" />
           </StatList>
+
+          {progress ? <ProgressBar {...progress} /> : null}
 
           <ErrorBanner message={error ?? selection.error} />
 
@@ -111,9 +119,9 @@ export function BackgroundRemover() {
           </div>
 
           <Hint>
-            Runs entirely in your browser &mdash; the image is never uploaded. The background colour is sampled from the
-            border, then pixels close to it are made transparent. Raise the tolerance if parts of the background remain,
-            and lower it if the subject starts disappearing.
+            Uses the RMBG-1.4 segmentation model, the same class of AI that remove.bg runs. It handles people, products,
+            hair, and busy backgrounds rather than just flat ones. The model is about 44 MB and downloads once on first
+            use, then stays cached; your image itself is never uploaded. Licensed CC BY-NC &mdash; non-commercial use only.
           </Hint>
         </div>
       </Panel>

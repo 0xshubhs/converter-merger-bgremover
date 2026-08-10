@@ -9,13 +9,31 @@ so there is no size limit and nothing to trust.
 | --- | --- | --- | --- |
 | Convert | Server | Images (incl. HEIC/HEIF) | JPEG, PNG, WebP, AVIF, TIFF, GIF |
 | Image to PDF | Browser | Images | A single PDF, one page per image |
-| Compress | Browser | Any files | A lossless ZIP archive |
-| Remove background | Browser | One image | A transparent PNG |
+| Compress | Browser | PDFs and images | The same file, smaller, in the same format |
+| Remove background | Browser | One image | A transparent PNG, cut out by an AI model |
 | Merge PDF | Browser | Two or more PDFs | One combined PDF |
 | Sign PDF | Browser | One PDF + a drawn, typed, or uploaded signature | The same PDF with the signature drawn in |
 
 Only **Convert** uses the server, because Sharp is needed for HEIC decoding and AVIF/TIFF encoding — a canvas cannot do
-those. Everything else uses `pdf-lib`, `jszip`, and the Canvas API, which all run client-side.
+those. Everything else uses `pdf-lib`, `jszip`, ONNX Runtime, and the Canvas API, which all run client-side.
+
+## Background removal
+
+Uses **RMBG-1.4**, a segmentation model run in the browser through ONNX Runtime Web — the same approach remove.bg takes.
+It classifies every pixel as foreground or background, so it handles people, products, hair, and cluttered scenes, rather
+than only flat backdrops.
+
+> **Licence: the RMBG-1.4 model is CC BY-NC 4.0 — free for non-commercial use only.** If this app is ever monetised you
+> need a commercial licence from BRIA, or a different model. The code is unaffected; this applies to the model weights.
+
+- The model is ~44 MB. It downloads on first use with a progress bar, then lives in the Cache Storage API, so later runs
+  start immediately.
+- **Your image is never uploaded.** Only the model is fetched — inference happens on your machine.
+- By default the model comes from the Hugging Face CDN. Set `NEXT_PUBLIC_RMBG_MODEL_URL` to serve it from your own
+  domain instead.
+- ONNX Runtime's WASM binaries are vendored into `public/ort` by `scripts/copy-ort.mjs`, which runs automatically before
+  `dev` and `build`. That directory is generated, so it is git-ignored — no CDN is involved for the runtime itself.
+- Runs single-threaded, because WASM threads would require cross-origin isolation headers.
 
 ## Run locally
 
@@ -60,7 +78,5 @@ Server-side limits (`MAX_FILES`, `MAX_FILE_SIZE`, `MAX_TOTAL_SIZE`) still apply 
 
 - HEIC/HEIF works in Convert via `heic-convert`. The browser tools can only open HEIC on Safari, which decodes it
   natively; elsewhere they tell you to run the file through Convert first.
-- Background removal samples the border of the image to guess the backdrop colour, so it works best on photos with a
-  plain or lightly textured background.
 - Sign PDF applies an **electronic** signature — an image drawn into the page content. It is not a cryptographic
   digital signature and carries no certificate-based identity guarantee.
