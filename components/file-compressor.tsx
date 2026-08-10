@@ -11,31 +11,30 @@ import {
   Panel,
   PanelHeading,
   PrimaryButton,
+  ProgressBar,
   RangeField,
   SecondaryButton,
   StatList,
   StatRow,
   ToolLayout
 } from '@/components/ui';
-import { formatBytes, postForm } from '@/lib/client/transfer';
+import { compressFilesInBrowser } from '@/lib/browser/tools';
+import { formatBytes } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { useToolRun } from '@/lib/client/use-tool-run';
 
 export function FileCompressor() {
   const selection = useFileSelection();
-  const { busy, error, run } = useToolRun();
+  const { busy, error, progress, run } = useToolRun();
 
   const [level, setLevel] = useState(9);
   const [resultSize, setResultSize] = useState<number | null>(null);
 
   async function handleCompress() {
-    const formData = new FormData();
-    selection.files.forEach((item) => formData.append('files', item.file, item.file.name));
-    formData.append('level', String(level));
+    const files = selection.files.map((item) => item.file);
+    const result = await run((report) => compressFilesInBrowser(files, level, report));
 
-    const payload = await run(() => postForm('/api/compress', formData, `compressed-files-${Date.now()}.zip`));
-
-    if (payload) setResultSize(payload.blob.size);
+    if (result) setResultSize(result.blob.size);
   }
 
   function handleClear() {
@@ -92,6 +91,8 @@ export function FileCompressor() {
             {savings !== null ? <StatRow label="Reduction" value={`${savings}%`} /> : null}
           </StatList>
 
+          {progress ? <ProgressBar {...progress} /> : null}
+
           <ErrorBanner message={error ?? selection.error} />
 
           <div className="flex flex-wrap gap-3">
@@ -104,8 +105,9 @@ export function FileCompressor() {
           </div>
 
           <Hint>
-            ZIP compression is lossless, so the files can be extracted back exactly as they were. Files that are already
-            compressed, such as JPEG, PNG, or PDF, may not shrink much.
+            Compression runs entirely in your browser, so files never leave your machine and there is no upload size
+            limit. ZIP is lossless, so files extract back exactly as they were &mdash; but anything already compressed,
+            such as JPEG, PNG, or PDF, will barely shrink.
           </Hint>
         </div>
       </Panel>

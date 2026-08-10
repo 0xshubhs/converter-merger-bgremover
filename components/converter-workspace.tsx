@@ -13,6 +13,8 @@ type Tool = {
   label: string;
   description: string;
   output: string;
+  /** Server tools are bound by the upload limit; browser tools are not. */
+  where: 'browser' | 'server';
   Component: ComponentType;
 };
 
@@ -22,6 +24,7 @@ const tools: Tool[] = [
     label: 'Convert',
     description: 'Batch image conversion',
     output: 'JPEG, PNG, WebP, AVIF, TIFF, GIF',
+    where: 'server',
     Component: ImageConverter
   },
   {
@@ -29,6 +32,7 @@ const tools: Tool[] = [
     label: 'Image to PDF',
     description: 'Images into one document',
     output: 'Single PDF',
+    where: 'browser',
     Component: ImageToPdf
   },
   {
@@ -36,6 +40,7 @@ const tools: Tool[] = [
     label: 'Compress',
     description: 'Lossless ZIP compression',
     output: 'Lossless ZIP',
+    where: 'browser',
     Component: FileCompressor
   },
   {
@@ -43,6 +48,7 @@ const tools: Tool[] = [
     label: 'Remove background',
     description: 'Cut out the subject',
     output: 'Transparent PNG',
+    where: 'browser',
     Component: BackgroundRemover
   },
   {
@@ -50,6 +56,7 @@ const tools: Tool[] = [
     label: 'Merge PDF',
     description: 'Combine PDF files',
     output: 'Single merged PDF',
+    where: 'browser',
     Component: PdfMerger
   },
   {
@@ -57,6 +64,7 @@ const tools: Tool[] = [
     label: 'Sign PDF',
     description: 'Draw, type, or upload',
     output: 'Signed PDF',
+    where: 'browser',
     Component: SignPdf
   }
 ];
@@ -78,8 +86,8 @@ export function ConverterWorkspace() {
                 Convert images, build PDFs, compress files, and cut out backgrounds in one interface.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                Everything runs on your own server: nothing is uploaded to a third-party service, and every tool hands back a
-                single download when it finishes.
+                Every tool except Convert runs entirely inside your browser, so your files are never uploaded anywhere and
+                there is no size limit. Convert uses the server for HEIC, AVIF, and TIFF encoding.
               </p>
             </div>
             <div className="grid gap-3 rounded-3xl border border-white/10 bg-slate-950/35 p-5 text-sm text-slate-300">
@@ -91,7 +99,12 @@ export function ConverterWorkspace() {
                   }`}
                 >
                   <span>{tool.label}</span>
-                  <span className="text-right text-sky-200">{tool.output}</span>
+                  <span className="text-right text-sky-200">
+                    {tool.output}
+                    <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-500">
+                      {tool.where === 'browser' ? 'local' : 'server'}
+                    </span>
+                  </span>
                 </div>
               ))}
             </div>

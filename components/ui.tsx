@@ -119,6 +119,24 @@ export function NoticeBanner({ message }: { message: string | null }) {
   );
 }
 
+export function ProgressBar({ done, total, label }: { done: number; total: number; label: string }) {
+  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-xs text-slate-300">
+        <span className="truncate">{label}</span>
+        <span className="shrink-0 text-slate-400">
+          {done}/{total}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-sky-300 transition-all duration-200" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export function PrimaryButton({
   children,
   disabled,

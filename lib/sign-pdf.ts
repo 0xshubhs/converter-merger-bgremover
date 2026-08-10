@@ -1,10 +1,9 @@
-import { PDFDocument } from 'pdf-lib';
-import sharp from 'sharp';
-import { HttpError } from './http';
+import type { PDFDocument as PDFDocumentInstance } from 'pdf-lib';
+import { HttpError } from './errors';
 
 /**
  * Where one signature goes. Coordinates are fractions of the page box so the
- * browser can send whatever preview scale it happened to render at.
+ * caller can work at whatever preview scale it happened to render at.
  * `x`/`y` are the top-left corner in screen orientation (y grows downward).
  */
 export type SignaturePlacement = {
@@ -16,7 +15,8 @@ export type SignaturePlacement = {
 
 export type SignPdfOptions = {
   pdfBytes: Uint8Array;
-  signaturePng: Buffer;
+  /** PNG bytes. The signature pad always produces one, in every input mode. */
+  signaturePng: Uint8Array;
   placements: SignaturePlacement[];
 };
 
@@ -26,7 +26,7 @@ function isFraction(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-/** Validates the placement list that arrives as JSON from the browser. */
+/** Validates a placement list, whether it came from JSON or straight from the UI. */
 export function parsePlacements(raw: string | null, pageCount: number): SignaturePlacement[] {
   let parsed: unknown;
 
@@ -59,7 +59,7 @@ export function parsePlacements(raw: string | null, pageCount: number): Signatur
 
     return {
       page,
-      // Clamped rather than rejected: rounding in the browser can land a hair outside.
+      // Clamped rather than rejected: rounding in the UI can land a hair outside.
       x: Math.min(1, Math.max(0, candidate.x)),
       y: Math.min(1, Math.max(0, candidate.y)),
       width: Math.min(1, Math.max(0.01, candidate.width))
@@ -68,7 +68,8 @@ export function parsePlacements(raw: string | null, pageCount: number): Signatur
 }
 
 export async function signPdf({ pdfBytes, signaturePng, placements }: SignPdfOptions) {
-  let document: PDFDocument;
+  const { PDFDocument } = await import('pdf-lib');
+  let document: PDFDocumentInstance;
 
   try {
     document = await PDFDocument.load(pdfBytes, { ignoreEncryption: false });
@@ -77,15 +78,14 @@ export async function signPdf({ pdfBytes, signaturePng, placements }: SignPdfOpt
     throw new HttpError(422, `The PDF could not be opened. ${reason}`);
   }
 
-  // Normalise whatever the browser drew (or the user uploaded) to a clean alpha PNG.
-  const normalized = await sharp(signaturePng, { failOn: 'none' })
-    .rotate()
-    .ensureAlpha()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .png()
-    .toBuffer();
+  let image;
 
-  const image = await document.embedPng(normalized);
+  try {
+    image = await document.embedPng(signaturePng);
+  } catch {
+    throw new HttpError(422, 'The signature image could not be read.');
+  }
+
   const aspectRatio = image.height / image.width;
   const pages = document.getPages();
 
@@ -96,13 +96,12 @@ export async function signPdf({ pdfBytes, signaturePng, placements }: SignPdfOpt
     const drawWidth = pageWidth * placement.width;
     const drawHeight = drawWidth * aspectRatio;
 
-    // The browser measures y from the top; PDF user space measures it from the bottom.
+    // The UI measures y from the top; PDF user space measures it from the bottom.
     const top = pageHeight * placement.y;
-    const y = pageHeight - top - drawHeight;
 
     page.drawImage(image, {
       x: pageWidth * placement.x,
-      y,
+      y: pageHeight - top - drawHeight,
       width: drawWidth,
       height: drawHeight
     });

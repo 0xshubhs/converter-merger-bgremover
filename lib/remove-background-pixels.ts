@@ -1,21 +1,15 @@
-import sharp from 'sharp';
-import { decodeHeicIfNeeded } from './decode-heic';
-import { MAX_IMAGE_DIMENSION } from './limits';
+type Rgb = { r: number; g: number; b: number };
 
-type RemoveBackgroundOptions = {
+export type RemoveBackgroundSettings = {
   tolerance?: number;
   feather?: number;
-  inputName?: string;
-  inputType?: string;
 };
-
-type Rgb = { r: number; g: number; b: number };
 
 /**
  * Averages the one-pixel border of the image, which is the cheapest reliable
  * guess at the background colour for a subject-on-backdrop photo.
  */
-function sampleEdgeBackground(pixels: Uint8Array, width: number, height: number): Rgb {
+export function sampleEdgeBackground(pixels: Uint8Array | Uint8ClampedArray, width: number, height: number): Rgb {
   let red = 0;
   let green = 0;
   let blue = 0;
@@ -51,20 +45,19 @@ function sampleEdgeBackground(pixels: Uint8Array, width: number, height: number)
   return { r: red / total, g: green / total, b: blue / total };
 }
 
-export async function removeBackground(buffer: Buffer, options: RemoveBackgroundOptions = {}) {
-  const tolerance = Math.max(0, Math.min(441, options.tolerance ?? 42));
-  const feather = Math.max(0, Math.min(441, options.feather ?? 32));
-  const decoded = await decodeHeicIfNeeded(buffer, options.inputName, options.inputType);
-
-  const { data, info } = await sharp(decoded, { failOn: 'none' })
-    .rotate()
-    .resize({ width: MAX_IMAGE_DIMENSION, height: MAX_IMAGE_DIMENSION, fit: 'inside', withoutEnlargement: true })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-  const background = sampleEdgeBackground(pixels, info.width, info.height);
+/**
+ * Clears pixels close to the sampled background colour, in place.
+ * Pure array maths, so the same code backs the canvas and any server path.
+ */
+export function removeBackgroundPixels(
+  pixels: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  settings: RemoveBackgroundSettings = {}
+) {
+  const tolerance = Math.max(0, Math.min(441, settings.tolerance ?? 42));
+  const feather = Math.max(0, Math.min(441, settings.feather ?? 32));
+  const background = sampleEdgeBackground(pixels, width, height);
 
   // Compare squared distances so the inner loop needs no sqrt for opaque pixels.
   const toleranceSquared = tolerance * tolerance;
@@ -86,15 +79,5 @@ export async function removeBackground(buffer: Buffer, options: RemoveBackground
     }
   }
 
-  const png = await sharp(data, {
-    raw: { width: info.width, height: info.height, channels: 4 }
-  })
-    .png({ compressionLevel: 9, effort: 7 })
-    .toBuffer();
-
-  return {
-    buffer: png,
-    mime: 'image/png',
-    extension: 'png'
-  };
+  return background;
 }

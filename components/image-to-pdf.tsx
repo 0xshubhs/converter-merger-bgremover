@@ -12,6 +12,7 @@ import {
   Panel,
   PanelHeading,
   PrimaryButton,
+  ProgressBar,
   RangeField,
   ReorderButtons,
   SecondaryButton,
@@ -21,10 +22,11 @@ import {
   StatRow,
   ToolLayout
 } from '@/components/ui';
-import { formatBytes, postForm } from '@/lib/client/transfer';
+import { imagesToPdfInBrowser } from '@/lib/browser/tools';
+import { formatBytes } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { useToolRun } from '@/lib/client/use-tool-run';
-import type { PdfOrientation, PdfPageSize } from '@/lib/images-to-pdf';
+import type { PdfOrientation, PdfPageSize } from '@/lib/pdf-page-layout';
 
 const pageSizeOptions = [
   { value: 'a4', label: 'A4 (210 × 297 mm)' },
@@ -45,7 +47,7 @@ export function ImageToPdf() {
     accept: (file) => !file.type || file.type.startsWith('image/'),
     rejectMessage: 'Only image files can be placed in a PDF.'
   });
-  const { busy, error, notice, run } = useToolRun();
+  const { busy, error, notice, progress, run } = useToolRun();
 
   const [pageSize, setPageSize] = useState<PdfPageSize>('a4');
   const [orientation, setOrientation] = useState<PdfOrientation>('auto');
@@ -53,14 +55,10 @@ export function ImageToPdf() {
   const [quality, setQuality] = useState(85);
 
   function handleCreate() {
-    const formData = new FormData();
-    selection.files.forEach((item) => formData.append('files', item.file, item.file.name));
-    formData.append('pageSize', pageSize);
-    formData.append('orientation', orientation);
-    formData.append('margin', String(margin));
-    formData.append('quality', String(quality));
+    const files = selection.files.map((item) => item.file);
+    const settings = { pageSize, orientation, margin, quality };
 
-    void run(() => postForm('/api/image-to-pdf', formData, `images-${Date.now()}.pdf`));
+    void run((report) => imagesToPdfInBrowser(files, settings, report));
   }
 
   return (
@@ -112,6 +110,8 @@ export function ImageToPdf() {
             <StatRow label="Output" value="Single PDF" />
           </StatList>
 
+          {progress ? <ProgressBar {...progress} /> : null}
+
           <ErrorBanner message={error ?? selection.error} />
           <NoticeBanner message={notice ? `Some images were skipped — ${notice}` : null} />
 
@@ -125,8 +125,9 @@ export function ImageToPdf() {
           </div>
 
           <Hint>
-            Images are rotated using their EXIF orientation, flattened onto white, and centred on the page. Lower the quality
-            slider to shrink the PDF, or pick &ldquo;Fit page to each image&rdquo; to keep the original aspect ratio on every page.
+            The PDF is built in your browser, so nothing is uploaded and there is no size limit. Images are flattened onto
+            white and centred on the page. Lower the quality slider to shrink the PDF, or pick &ldquo;Fit page to each
+            image&rdquo; to keep the original aspect ratio on every page.
           </Hint>
         </div>
       </Panel>

@@ -16,7 +16,8 @@ import {
   StatRow,
   ToolLayout
 } from '@/components/ui';
-import { formatBytes, postForm } from '@/lib/client/transfer';
+import { removeBackgroundInBrowser } from '@/lib/browser/tools';
+import { formatBytes } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { useToolRun } from '@/lib/client/use-tool-run';
 
@@ -37,14 +38,9 @@ export function BackgroundRemover() {
   function handleRemoveBackground() {
     if (!selected) return;
 
-    const formData = new FormData();
-    formData.append('file', selected.file, selected.file.name);
-    formData.append('tolerance', String(tolerance));
-    formData.append('feather', String(feather));
+    const file = selected.file;
 
-    const fallback = `${selected.file.name.replace(/\.[^/.]+$/, '')}-no-background.png`;
-
-    void run(() => postForm('/api/remove-background', formData, fallback));
+    void run(() => removeBackgroundInBrowser(file, tolerance, feather));
   }
 
   return (
@@ -113,8 +109,9 @@ export function BackgroundRemover() {
           </div>
 
           <Hint>
-            The background colour is sampled from the border of the image, then pixels close to it are made transparent.
-            Raise the tolerance if parts of the background remain, and lower it if the subject starts disappearing.
+            Runs entirely in your browser &mdash; the image is never uploaded. The background colour is sampled from the
+            border, then pixels close to it are made transparent. Raise the tolerance if parts of the background remain,
+            and lower it if the subject starts disappearing.
           </Hint>
         </div>
       </Panel>

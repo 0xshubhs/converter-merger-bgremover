@@ -23,6 +23,7 @@ import { formatBytes, postForm } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { useToolRun } from '@/lib/client/use-tool-run';
 import { isLossyFormat, outputExtension, type SupportedOutputFormat } from '@/lib/image-format';
+import { MAX_SERVER_REQUEST_BYTES } from '@/lib/limits';
 
 const formatOptions = [
   { value: 'jpeg', label: 'JPEG (.jpg)' },
@@ -47,7 +48,7 @@ function compressionToQuality(compression: number) {
 
 export function ImageConverter() {
   const selection = useFileSelection({ withPreview: true, accept: (file) => !file.type || file.type.startsWith('image/'), rejectMessage: 'Only image files can be converted.' });
-  const { busy, error, run } = useToolRun();
+  const { busy, error, setError, run } = useToolRun();
 
   const [format, setFormat] = useState<SupportedOutputFormat>('jpeg');
   const [quality, setQuality] = useState(92);
@@ -63,6 +64,15 @@ export function ImageConverter() {
   );
 
   function handleConvert() {
+    // Convert is the one tool that still uploads, so the platform cap applies.
+    if (selection.totalSize > MAX_SERVER_REQUEST_BYTES) {
+      setError(
+        `This batch is ${formatBytes(selection.totalSize)}. Conversion runs on the server, which accepts up to ${formatBytes(MAX_SERVER_REQUEST_BYTES)} per batch — convert fewer images at a time.`
+      );
+
+      return;
+    }
+
     const formData = new FormData();
     selection.files.forEach((item) => formData.append('files', item.file, item.file.name));
     formData.append('format', format);

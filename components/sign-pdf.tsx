@@ -16,7 +16,8 @@ import {
   StatRow,
   ToolLayout
 } from '@/components/ui';
-import { formatBytes, postForm } from '@/lib/client/transfer';
+import { signPdfInBrowser } from '@/lib/browser/tools';
+import { formatBytes } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { usePdfPreview } from '@/lib/client/use-pdf-preview';
 import { useToolRun } from '@/lib/client/use-tool-run';
@@ -147,15 +148,11 @@ export function SignPdf() {
   function handleSign() {
     if (!document || !signature || !placements.length) return;
 
-    const formData = new FormData();
-    formData.append('file', document, document.name);
-    formData.append('signature', signature, 'signature.png');
-    formData.append(
-      'placements',
-      JSON.stringify(placements.map(({ page, x, y }) => ({ page, x, y, width })))
-    );
+    const file = document;
+    const png = signature;
+    const boxes = placements.map(({ page, x, y }) => ({ page, x, y, width }));
 
-    void run(() => postForm('/api/sign-pdf', formData, `${document.name.replace(/\.[^/.]+$/, '')}-signed.pdf`));
+    void run(() => signPdfInBrowser(file, png, boxes));
   }
 
   const perPage = useMemo(() => {

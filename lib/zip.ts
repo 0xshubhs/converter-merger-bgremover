@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 
 type ZipEntry = {
   name: string;
@@ -42,6 +41,8 @@ type ZipOptions = {
 };
 
 export async function zipEntries(entries: ZipEntry[], options: ZipOptions = {}) {
+  // Loaded on demand so the ~100 kB deflate implementation stays out of first paint.
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
 
   for (const entry of entries) {

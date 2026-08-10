@@ -1,5 +1,5 @@
-import { PDFDocument } from 'pdf-lib';
-import { HttpError } from './http';
+import type { PDFDocument as PDFDocumentInstance } from 'pdf-lib';
+import { HttpError } from './errors';
 
 type MergeInput = {
   name: string;
@@ -7,11 +7,12 @@ type MergeInput = {
 };
 
 export async function mergePdfs(inputs: MergeInput[]) {
+  const { PDFDocument } = await import('pdf-lib');
   const merged = await PDFDocument.create();
   let pageCount = 0;
 
   for (const input of inputs) {
-    let source: PDFDocument;
+    let source: PDFDocumentInstance;
 
     try {
       source = await PDFDocument.load(input.bytes, { ignoreEncryption: false });

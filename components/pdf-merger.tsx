@@ -8,6 +8,7 @@ import {
   Panel,
   PanelHeading,
   PrimaryButton,
+  ProgressBar,
   RemoveButton,
   ReorderButtons,
   SecondaryButton,
@@ -15,7 +16,8 @@ import {
   StatRow,
   ToolLayout
 } from '@/components/ui';
-import { formatBytes, postForm } from '@/lib/client/transfer';
+import { mergePdfsInBrowser } from '@/lib/browser/tools';
+import { formatBytes } from '@/lib/client/transfer';
 import { useFileSelection } from '@/lib/client/use-file-selection';
 import { useToolRun } from '@/lib/client/use-tool-run';
 
@@ -25,13 +27,12 @@ function isPdf(file: File) {
 
 export function PdfMerger() {
   const selection = useFileSelection({ accept: isPdf, rejectMessage: 'Only PDF files can be merged.' });
-  const { busy, error, run } = useToolRun();
+  const { busy, error, progress, run } = useToolRun();
 
   function handleMerge() {
-    const formData = new FormData();
-    selection.files.forEach((item) => formData.append('files', item.file, item.file.name));
+    const files = selection.files.map((item) => item.file);
 
-    void run(() => postForm('/api/merge-pdf', formData, `merged-${Date.now()}.pdf`));
+    void run((report) => mergePdfsInBrowser(files, report));
   }
 
   return (
@@ -87,6 +88,8 @@ export function PdfMerger() {
             <StatRow label="Order" value="Manual" />
           </StatList>
 
+          {progress ? <ProgressBar {...progress} /> : null}
+
           <ErrorBanner message={error ?? selection.error} />
 
           <div className="flex flex-wrap gap-3">
@@ -99,8 +102,8 @@ export function PdfMerger() {
           </div>
 
           <Hint>
-            This merges PDF pages in the order shown above and downloads a single combined PDF. Password-protected files have
-            to be unlocked first.
+            Merging happens in your browser, so the PDFs are never uploaded and there is no size limit. Pages are combined
+            in the order shown above. Password-protected files have to be unlocked first.
           </Hint>
         </div>
       </Panel>
